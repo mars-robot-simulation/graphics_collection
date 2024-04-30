@@ -1,0 +1,8 @@
+<package>
+    <description brief="osg_text">
+	Text implementation to create 2d opengl (OSG) text with border and background.
+   </description>
+   <maintainer>Matthias Goldhoorn/matthias@goldhoorn.eu</maintainer>
+   <depend package="osg" />
+   <tags>needs_opt</tags>
+</package>

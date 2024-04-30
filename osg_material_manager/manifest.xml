@@ -1,0 +1,13 @@
+<package>
+    <description brief="osg_material_manager">
+   </description>
+	<maintainer>Malte Langosz/malte.langosz@dfki.de</maintainer>
+    <depend package="simulation/lib_manager" />
+    <depend package="simulation/utils" />
+    <depend package="simulation/cfg_manager" />
+    <depend package="tools/configmaps" />
+    <!-- TODO remove this dependency, this library should be independent from mars (move LightData from mars_interface somewhere in graphics collection)-->
+    <depend package="simulation/mars2/mars_interfaces" />
+    <depend package="opencv" />
+    <tags>needs_opt</tags>
+</package>

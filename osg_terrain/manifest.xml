@@ -1,0 +1,11 @@
+<package>
+    <description brief="osg_terrain">
+	</description>
+	<maintainer>Malte Langosz/malte.langosz@dfki.de</maintainer>
+    <depend package="tools/configmaps" />
+    <depend package="simulation/lib_manager" />
+    <depend package="simulation/utils" />
+    <depend package="simulation/graphics_collection/osg_material_manager" />
+    <depend package="opencv" />
+    <tags>needs_opt</tags>
+</package>
