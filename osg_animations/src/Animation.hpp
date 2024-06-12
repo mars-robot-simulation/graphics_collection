@@ -1,6 +1,6 @@
 #pragma once
 
-#include <osg_material_manager/OsgMaterialManager.h>
+#include <osg_material_manager/OsgMaterialManager.hpp>
 #include <mars_interfaces/graphics/GraphicsManagerInterface.h>
 
 namespace osg_animation
