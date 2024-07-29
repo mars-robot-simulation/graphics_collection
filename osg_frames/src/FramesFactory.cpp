@@ -8,7 +8,6 @@ namespace osg_frames
 
     FramesFactory::FramesFactory()
     {
-
         // load frames resource
         std::stringstream ss;
         ss << SHARE_DIR;
@@ -23,8 +22,7 @@ namespace osg_frames
 
     Frame* FramesFactory::createFrame(void)
     {
-        FrameP *frame = new FrameP();
-        return frame;
+        return new FrameP;
     }
 
 } // end of namespace: osg_frames
