@@ -20,12 +20,12 @@ namespace osg_frames
 
     void FrameP::setPosition(double x, double y, double z)
     {
-        poseTransform->setPosition(osg::Vec3{x, y, z});
+        poseTransform->setPosition(osg::Vec3(x, y, z));
     }
 
     void FrameP::setRotation(double x, double y, double z, double w)
     {
-        poseTransform->setAttitude(osg::Quat{x, y, z, w});
+        poseTransform->setAttitude(osg::Quat(x, y, z, w));
     }
 
     void FrameP::setScale(double x)
