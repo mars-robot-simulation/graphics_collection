@@ -39,7 +39,7 @@ void pixellight_frag(vec4 base, vec3 n, float shadow, out vec4 outcol) {
       if(lightIsSpot[i]==1) {
         float spotEffect = dot( normalize( spotDir[i] ), normalize( lightVec[i]  ) );
         float spot = (spotEffect > lightCosCutoff[i]) ? 1.0 : 1.0-min(1.0, pow(lightSpotExponent[i]*(lightCosCutoff[i]-spotEffect), 2));
-        diffuse_  += spot * shadow * (atten*diffuse[i] * nDotL);
+        diffuse_  += spot * shadow * (atten*diffuse[i]*gl_FrontMaterial.diffuse * nDotL);
         test_specular_ = (spot * shadow * atten*specular[i]
                           * pow(rDotE, gl_FrontMaterial.shininess));
         specular_ += (gl_FrontMaterial.shininess > 0) ? test_specular_ : vec4(0.0);
@@ -47,7 +47,7 @@ void pixellight_frag(vec4 base, vec3 n, float shadow, out vec4 outcol) {
       }
       else {
         ambient  += lightAmbient[i]*gl_FrontMaterial.ambient;
-        diffuse_  += shadow*(atten*diffuse[i] * nDotL);
+        diffuse_  += shadow*(atten*diffuse[i]*gl_FrontMaterial.diffuse * nDotL);
         test_specular_ = shadow*(specular[i]
                           * pow(rDotE, gl_FrontMaterial.shininess)); //needed as in some driver implementations, pow(0,0) yields NaN
         specular_ += (gl_FrontMaterial.shininess > 0) ? test_specular_ : vec4(0.0);

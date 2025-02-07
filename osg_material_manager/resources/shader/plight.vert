@@ -12,7 +12,7 @@ void pixellight_vert(vec4 v, vec4 eye, vec4 scol) {
       } else {
         lightVec[i] = v.xyz-lightPos[i];
       }
-      diffuse[i] = lightDiffuse[i]*gl_FrontMaterial.diffuse;
+      diffuse[i] = lightDiffuse[i];
       specular[i] = lightSpecular[i]*scol;
       spotDir[i] = lightSpotDir[i];
     }
