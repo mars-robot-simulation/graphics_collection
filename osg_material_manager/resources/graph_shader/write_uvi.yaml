@@ -1,0 +1,7 @@
+params:
+  in:
+    texCoord: {index: 0, type: vec2}
+    intensity: {index: 1, type: float}
+  out:
+    color: {index: 2, type: vec4}
+source: /graph_shader/write_uvi.frag
