@@ -38,4 +38,9 @@ namespace osg_frames
         return static_cast<void*>(poseTransform.get());
     }
 
+    void FrameP::setNodeMask(int mask)
+    {
+        poseTransform->setNodeMask(mask);
+    }
+
 } // end of namespace: osg_frames

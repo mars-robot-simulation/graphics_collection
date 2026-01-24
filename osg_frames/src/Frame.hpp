@@ -22,6 +22,7 @@ namespace osg_frames
         virtual void setRotation(double x, double y, double z, double w) = 0;
         virtual void setScale(double x) = 0;
         virtual void* getOSGNode() = 0;
+        virtual void setNodeMask(int mask) = 0;
     };
 
 } // end of namespace: osg_frames

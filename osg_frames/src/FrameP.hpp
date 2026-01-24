@@ -22,6 +22,7 @@ namespace osg_frames
         virtual void setRotation(double x, double y, double z, double w);
         virtual void setScale(double x);
         virtual void* getOSGNode();
+        virtual void setNodeMask(int mask);
 
         static osg::ref_ptr<osg::Node> frameNode;
 
