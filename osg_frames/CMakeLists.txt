@@ -1,7 +1,7 @@
+cmake_minimum_required(VERSION 3.10)
 project(osg_frames)
 set(PROJECT_VERSION 1.0)
 set(PROJECT_DESCRIPTION "Implementation to visualize 3D frames.")
-cmake_minimum_required(VERSION 2.6)
 include(FindPkgConfig)
 
 find_package(OpenSceneGraph REQUIRED osgManipulator osgViewer osgFX osgShadow osgParticle osgTerrain osgDB osgGA osgWidget osgText osgUtil)

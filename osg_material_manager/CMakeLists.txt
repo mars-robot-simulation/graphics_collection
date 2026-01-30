@@ -1,7 +1,7 @@
+cmake_minimum_required(VERSION 3.10)
 project(osg_material_manager)
 set(PROJECT_VERSION 1.0)
 set(PROJECT_DESCRIPTION "")
-cmake_minimum_required(VERSION 2.6)
 include(FindPkgConfig)
 include(CheckIncludeFileCXX)
 

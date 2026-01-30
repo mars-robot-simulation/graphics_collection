@@ -1,7 +1,7 @@
+cmake_minimum_required(VERSION 3.10)
 project(osg_text_factory)
 set(PROJECT_VERSION 1.0)
 set(PROJECT_DESCRIPTION "This lib wraps osg_text to create 3D text without osg dependency in MARS.")
-cmake_minimum_required(VERSION 2.6)
 include(FindPkgConfig)
 
 find_package(lib_manager)
