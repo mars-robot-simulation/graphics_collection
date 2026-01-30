@@ -5,7 +5,7 @@ set(PROJECT_DESCRIPTION "")
 include(FindPkgConfig)
 include(CheckIncludeFileCXX)
 
-add_definitions(-std=c++11)
+#add_definitions(-std=c++11)
 
 find_package(lib_manager)
 lib_defaults()
@@ -15,16 +15,6 @@ setup_opencv()
 find_package(OpenSceneGraph REQUIRED  osgDB osgText osgUtil)
 include_directories(${OPENSCENEGRAPH_INCLUDE_DIRS})
 link_directories(${OPENSCENEGRAPH_LIBRARY_DIRS})
-
-if(WIN32)
-  # this fixes the error 998 from the LibManager
-  set(CMAKE_SHARED_LINKER_FLAGS "-Wl,--enable-auto-import")
-  set(CMAKE_MODULE_LINKER_FLAGS "-Wl,--enable-auto-import")
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=gnu++11")
-else(WIN32)
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC")
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
-endif(WIN32)
 
 set (CMAKE_REQUIRED_INCLUDES ${CMAKE_REQUIRED_INCLUDES} ${OPENSCENEGRAPH_INCLUDE_DIRS})
 CHECK_INCLUDE_FILE_CXX("osg/Version" HAVE_OSG_VERSION_H)
