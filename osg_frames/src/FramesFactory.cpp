@@ -2,7 +2,8 @@
 #include "FrameP.hpp"
 
 #include <osgDB/ReadFile>
-
+#define MACRO_STR(name) #name
+#define SHARE_DIR_STR MACRO_STR(SHARE_DIR)
 namespace osg_frames
 {
 
@@ -10,7 +11,7 @@ namespace osg_frames
     {
         // load frames resource
         std::stringstream ss;
-        ss << SHARE_DIR;
+        ss << SHARE_DIR_STR;
         ss << "/resources/frame.obj";
         fprintf(stderr, "osg_frames: load %s\n", ss.str().c_str());
         FrameP::frameNode = osgDB::readNodeFile(ss.str());
