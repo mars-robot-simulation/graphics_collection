@@ -25,9 +25,11 @@ layout(push_constant) uniform PushConstants {
 } pc;
 
 layout(location = 0) in vec3 vsg_Vertex;
-layout(location = 1) in vec3 vsg_Color;
+layout(location = 1) in vec3 vsg_Normal;
+layout(location = 2) in vec3 vsg_Color;
 layout(location = 0) out vec3 color;
 layout(location = 1) out vec3 pos;
+layout(location = 2) out float distanceToLine;
 
 out gl_PerVertex{
  vec4 gl_Position;
@@ -36,10 +38,23 @@ out gl_PerVertex{
 
 void main()
 {
-    vec4 v = pc.projection * pc.modelView * vec4(vsg_Vertex, 1.0);
+    vec4 e = pc.modelView * vec4(vsg_Vertex, 1.0);
+    vec4 v = pc.projection * e;
+    vec4 d = pc.projection * pc.modelView * vec4(vsg_Normal, 1.0);
+    float m = mod(gl_VertexIndex, 2);
+    d /= d.w;
+    vec2 t = normalize(vec2(-d.y, d.x));
+    float fade = (-e.z-1)*0.02;
+    fade = max(min(fade, 1.0), 0.0);
+    float expand = 0.04-fade*0.04;
+    float direction = 1;
+    if(m > 0.5) direction = -1;
+    v = vec4(v.xy + t*expand*direction*v.w, v.z, v.w);;
+
     gl_Position = v;
     color = vsg_Color.xyz;
     pos = v.xyz/v.w;
+    distanceToLine = direction;
 }
 )";
 
@@ -49,13 +64,21 @@ void main()
 
 layout(location = 0) in vec3 color;
 layout(location = 1) in vec3 pos;
+layout(location = 2) in float distanceToLine;
+
 layout(location = 0) out vec4 outColor;
 
 void main()
 {
-    vec2 d =1/fwidth(pos.xy);
-    float n = max(length(d), 1.0);
-    outColor = vec4(color, n);
+    float d = abs(distanceToLine)*10;
+    float derivative = fwidth(d);
+    float a =  1-d;
+    a = min(max(sqrt(a), 0), 1);
+    //a=1;
+    outColor = vec4(color, a);
+    float depth = pos.z;
+    if(a < 0.25) depth = 0;
+    gl_FragDepth = depth;
 }
 )";
 
@@ -149,33 +172,73 @@ void main()
 
         // recreate arrays
         vsg::ref_ptr<vsg::vec3Array> vsgVertices;
+        vsg::ref_ptr<vsg::vec3Array> vsgNormals;
         vsg::ref_ptr<vsg::vec4Array> vsgColors;
+        vsg::ref_ptr<vsg::uintArray> vsgIndices;
         size_t numVertices = vertices.size();
         if(!strip)
         {
-            vsgVertices = vsg::vec3Array::create(numVertices);
-            vsgColors = vsg::vec4Array::create(numVertices);
-            std::memcpy(vsgVertices->dataPointer(), vertices.data(), numVertices * 12);
-            std::memcpy(vsgColors->dataPointer(), colors.data(), numVertices * 16);
+            // each line is represented by a quad, so we have to
+            // duplicate the vertices
+            vsgVertices = vsg::vec3Array::create(numVertices*2);
+            // the normals encode the direction vector of the line
+            vsgNormals = vsg::vec3Array::create(numVertices*2);
+            vsgColors = vsg::vec4Array::create(numVertices*2);
+            vsgIndices = vsg::uintArray::create(numVertices*3);
+            vsg::vec3 direction;
+            for(int i=0; i< vertices.size()/2; ++i)
+            {
+                direction = vertices[i*2+1] - vertices[i*2];
+                vsgVertices->at(i*4) = vertices[i*2];
+                vsgVertices->at(i*4+1) = vertices[i*2];
+                vsgVertices->at(i*4+2) = vertices[i*2+1];
+                vsgVertices->at(i*4+3) = vertices[i*2+2];
+                vsgNormals->at(i*4) = direction;
+                vsgNormals->at(i*4+1) = direction;
+                vsgNormals->at(i*4+2) = direction;
+                vsgNormals->at(i*4+3) = direction;
+                vsgColors->at(i*4) = colors[i*2];
+                vsgColors->at(i*4+1) = colors[i*2+1];
+                vsgColors->at(i*4+2) = colors[i*2+2];
+                vsgColors->at(i*4+3) = colors[i*2+3];
+                vsgIndices->at(i*6) = i*4;
+                vsgIndices->at(i*6+1) = i*4+3;
+                vsgIndices->at(i*6+2) = i*4+1;
+                vsgIndices->at(i*6+3) = i*4+2;
+                vsgIndices->at(i*6+4) = i*4+3;
+                vsgIndices->at(i*6+5) = i*4;
+            }
         } else
         {
             numVertices = vertices.size()*2-2;
-            vsgVertices = vsg::vec3Array::create(numVertices);
-            vsgColors = vsg::vec4Array::create(numVertices);
-            std::vector<vsg::vec3> vertices2;
-            std::vector<vsg::vec4> colors2;
-            vertices2.resize(numVertices);
-            colors2.resize(numVertices);
-
+            vsgVertices = vsg::vec3Array::create(numVertices*2);
+            vsgNormals = vsg::vec3Array::create(numVertices*2);
+            vsgColors = vsg::vec4Array::create(numVertices*2);
+            vsgIndices = vsg::uintArray::create(numVertices*3);
+            vsg::vec3 direction;
             for(int i=1; i< vertices.size(); ++i)
             {
-                vertices2[i*2-2] = vertices[i-1];
-                vertices2[i*2-1] = vertices[i];
-                colors2[i*2-2] = colors[i-1];
-                colors2[i*2-1] = colors[i];
+                direction = vertices[i] - vertices[i-1];
+                direction = vsg::normalize(direction);
+                vsgVertices->at(i*4-4) = vertices[i-1];
+                vsgVertices->at(i*4-3) = vertices[i-1];
+                vsgVertices->at(i*4-2) = vertices[i];
+                vsgVertices->at(i*4-1) = vertices[i];
+                vsgNormals->at(i*4-4) = direction;
+                vsgNormals->at(i*4-3) = direction;
+                vsgNormals->at(i*4-2) = direction;
+                vsgNormals->at(i*4-1) = direction;
+                vsgColors->at(i*4-4) = colors[i-1];
+                vsgColors->at(i*4-3) = colors[i-1];
+                vsgColors->at(i*4-2) = colors[i];
+                vsgColors->at(i*4-1) = colors[i];
+                vsgIndices->at(i*6-6) = i*4-4;
+                vsgIndices->at(i*6-5) = i*4-1;
+                vsgIndices->at(i*6-4) = i*4-3;
+                vsgIndices->at(i*6-3) = i*4-2;
+                vsgIndices->at(i*6-2) = i*4-1;
+                vsgIndices->at(i*6-1) = i*4-4;
             }
-            std::memcpy(vsgVertices->dataPointer(), vertices2.data(), numVertices * 12);
-            std::memcpy(vsgColors->dataPointer(), colors2.data(), numVertices * 16);
         }
 
         // at the moment we always have to recreate the stategroup due the the arrays binding
@@ -204,7 +267,8 @@ void main()
             auto shaderSet = vsg::ShaderSet::create(vsg::ShaderStages{vertexShader, fragmentShader});
 
             shaderSet->addAttributeBinding("vsg_Vertex", "", 0, VK_FORMAT_R32G32B32_SFLOAT, vsg::vec3Array::create(1));
-            shaderSet->addAttributeBinding("vsg_Color", "", 1, VK_FORMAT_R32G32B32A32_SFLOAT, vsg::vec4Array::create(1), vsg::CoordinateSpace::LINEAR);
+            shaderSet->addAttributeBinding("vsg_Normal", "", 1, VK_FORMAT_R32G32B32_SFLOAT, vsg::vec3Array::create(1));
+            shaderSet->addAttributeBinding("vsg_Color", "", 2, VK_FORMAT_R32G32B32A32_SFLOAT, vsg::vec4Array::create(1), vsg::CoordinateSpace::LINEAR);
 
             shaderSet->addDescriptorBinding("lightData", "", VIEW_DESCRIPTOR_SET, 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, vsg::vec4Array::create(64));
 
@@ -228,10 +292,15 @@ void main()
             auto colorBlendState = vsg::ColorBlendState::create(vsg::ColorBlendState::ColorBlendAttachments{colorBlendAttachment});
             shaderSet->defaultGraphicsPipelineStates.push_back(colorBlendState);
 
+            auto rasterState = vsg::RasterizationState::create();
+            rasterState->cullMode = VK_CULL_MODE_NONE;
+            shaderSet->defaultGraphicsPipelineStates.push_back(rasterState);
+
             auto graphicsPipelineConfig = vsg::GraphicsPipelineConfigurator::create(shaderSet);
 
             vsg::DataList vertexArrays;
             graphicsPipelineConfig->assignArray(vertexArrays, "vsg_Vertex", VK_VERTEX_INPUT_RATE_VERTEX, vsgVertices);
+            graphicsPipelineConfig->assignArray(vertexArrays, "vsg_Normal", VK_VERTEX_INPUT_RATE_VERTEX, vsgNormals);
             graphicsPipelineConfig->assignArray(vertexArrays, "vsg_Color", VK_VERTEX_INPUT_RATE_VERTEX, vsgColors);
 
             struct SetPipelineStates : public vsg::Visitor
@@ -253,11 +322,13 @@ void main()
                     }
             } sps;
 
-            graphicsPipelineConfig->accept(sps);
+            //graphicsPipelineConfig->accept(sps);
 
-            auto vertexDraw = vsg::VertexDraw::create();
+            auto vertexDraw = vsg::VertexIndexDraw::create();
             vertexDraw->assignArrays(vertexArrays);
-            vertexDraw->vertexCount = static_cast<uint32_t>(numVertices);
+            vertexDraw->assignIndices(vsgIndices);
+            vertexDraw->indexCount = static_cast<uint32_t>(vsgIndices->size());
+            //vertexDraw->vertexCount = static_cast<uint32_t>(numVertices);
             vertexDraw->instanceCount = 1;
             vertexDraw->firstBinding = graphicsPipelineConfig->baseAttributeBinding;
 
