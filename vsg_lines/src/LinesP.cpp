@@ -24,11 +24,16 @@ layout(push_constant) uniform PushConstants {
     mat4 modelView;
 } pc;
 
+layout(set = 0, binding = 5) uniform WorldTransform{
+    mat4 projectionInverse;
+    mat4 viewInverse;
+} wt;
+
 layout(location = 0) in vec3 vsg_Vertex;
-layout(location = 1) in vec3 vsg_Normal;
+layout(location = 1) in vec3 vsg_Dir;
 layout(location = 2) in vec3 vsg_Color;
 layout(location = 0) out vec3 color;
-layout(location = 1) out vec3 pos;
+layout(location = 1) out vec4 pos;
 layout(location = 2) out float distanceToLine;
 
 out gl_PerVertex{
@@ -38,23 +43,67 @@ out gl_PerVertex{
 
 void main()
 {
-    vec4 e = pc.modelView * vec4(vsg_Vertex, 1.0);
+    mat4 modelView = inverse(wt.viewInverse);
+    mat4 viewInverse = inverse(pc.modelView);
+    mat4 projectionInverse = inverse(pc.projection);
+
+    vec4 e = modelView * vec4(vsg_Vertex, 1.0);
     vec4 v = pc.projection * e;
-    vec4 d = pc.projection * pc.modelView * vec4(vsg_Normal, 1.0);
-    float m = mod(gl_VertexIndex, 2);
-    d /= d.w;
-    vec2 t = normalize(vec2(-d.y, d.x));
+    //vec4 d = pc.projection * modelView * vec4(vsg_Dir, 1.0);
+    vec4 d = pc.projection * modelView * vec4(vsg_Vertex+vsg_Dir, 1.0);
+    //vec2 d2 = d.xy/d.w;
+    vec2 d2 = vec2(d.xy-v.xy);
+    vec4 offset = projectionInverse * vec4(-d2.y, d2.x, 0, 1);
+
+    int m = int(floor(mod(gl_VertexIndex, 4)+0.1));
+    float direction[4] = {1, -1, 1, -1};
+
+    //vec4 cam_z_dir = vec4(0, 0, -1.0, 1);
+    // cam_z_dir in world coordinates
+    //cam_z_dir = wt.viewInverse * cam_z_dir;
+    //vec3 t = normalize(cross(normalize(cam_z_dir.xyz), normalize(vsg_Dir)));
+
+    vec3 t = normalize(vec3(offset.xy, 0));
+
     float fade = (-e.z-1)*0.02;
     fade = max(min(fade, 1.0), 0.0);
+    fade = 0;
     float expand = 0.04-fade*0.04;
-    float direction = 1;
-    if(m > 0.5) direction = -1;
-    v = vec4(v.xy + t*expand*direction*v.w, v.z, v.w);;
+    v = vec4(e.xy + t.xy*expand*direction[m], e.z, e.w);
+    //v = vec4(vsg_Vertex + t*expand*direction[m], 1.0);
+
+    v = pc.projection*v;
+    //color = vec3(normalize(d.xy)*0.5+0.5, 0);
+    //color = vec3(1, 1, 1);
+    color = vsg_Color.xyz;
+    // if(m == 5)
+    // {
+
+    //   v = modelView * vec4(vsg_Vertex, 1);
+    //   d = modelView * vec4(vsg_Dir, 1);
+
+    //   //v = vec4(v.xyz-d.xyz, 1);
+
+    //   v = wt.viewInverse * v;
+    //   d = wt.viewInverse * d;
+
+    //   vec3 v1 = camPos.xyz-vsg_Vertex;
+    //   v1 = vsg_Vertex + 0.5*v1;
+    //   //v1 = camPos.xyz;
+
+    //   v = vec4(v.xyz-d.xyz, 1);
+    //   v = modelView*vec4(v1, 1.0);
+
+    //   //v.w = 1/length(v.xyz);
+    //   //v.w = 1;
+    //   v = pc.projection * v;
+    //   color = vec3(1, 0, 0);
+    // }
 
     gl_Position = v;
-    color = vsg_Color.xyz;
-    pos = v.xyz/v.w;
-    distanceToLine = direction;
+
+    pos = v;
+    distanceToLine = direction[m];  //length(d.xy);
 }
 )";
 
@@ -63,7 +112,7 @@ void main()
 #extension GL_ARB_separate_shader_objects : enable
 
 layout(location = 0) in vec3 color;
-layout(location = 1) in vec3 pos;
+layout(location = 1) in vec4 pos;
 layout(location = 2) in float distanceToLine;
 
 layout(location = 0) out vec4 outColor;
@@ -76,11 +125,20 @@ void main()
     a = min(max(sqrt(a), 0), 1);
     //a=1;
     outColor = vec4(color, a);
-    float depth = pos.z;
+    //outColor = vec4(vec3(distanceToLine), 1.0);
+    float depth = pos.z/pos.w;
     if(a < 0.25) depth = 0;
+    //if(color.g > 0.1) depth = 0;
     gl_FragDepth = depth;
 }
 )";
+
+    struct WorldTransformUniform
+    {
+        vsg::mat4 projInverse;
+        vsg::mat4 viewInverse;
+    };
+    using WorldTransformUniformValue = vsg::Value<WorldTransformUniform>;
 
     LinesP::LinesP()
     {
@@ -219,7 +277,7 @@ void main()
             for(int i=1; i< vertices.size(); ++i)
             {
                 direction = vertices[i] - vertices[i-1];
-                direction = vsg::normalize(direction);
+                //direction = vsg::normalize(direction);
                 vsgVertices->at(i*4-4) = vertices[i-1];
                 vsgVertices->at(i*4-3) = vertices[i-1];
                 vsgVertices->at(i*4-2) = vertices[i];
@@ -267,10 +325,12 @@ void main()
             auto shaderSet = vsg::ShaderSet::create(vsg::ShaderStages{vertexShader, fragmentShader});
 
             shaderSet->addAttributeBinding("vsg_Vertex", "", 0, VK_FORMAT_R32G32B32_SFLOAT, vsg::vec3Array::create(1));
-            shaderSet->addAttributeBinding("vsg_Normal", "", 1, VK_FORMAT_R32G32B32_SFLOAT, vsg::vec3Array::create(1));
+            shaderSet->addAttributeBinding("vsg_Dir", "", 1, VK_FORMAT_R32G32B32_SFLOAT, vsg::vec3Array::create(1));
             shaderSet->addAttributeBinding("vsg_Color", "", 2, VK_FORMAT_R32G32B32A32_SFLOAT, vsg::vec4Array::create(1), vsg::CoordinateSpace::LINEAR);
 
+            shaderSet->addDescriptorBinding("material", "", MATERIAL_DESCRIPTOR_SET, 10, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, vsg::PbrMaterialValue::create(), vsg::CoordinateSpace::LINEAR);
             shaderSet->addDescriptorBinding("lightData", "", VIEW_DESCRIPTOR_SET, 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, vsg::vec4Array::create(64));
+            shaderSet->addDescriptorBinding("worldTransform", "", VIEW_DESCRIPTOR_SET, 5, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT, WorldTransformUniformValue::create());
 
             shaderSet->addPushConstantRange("pc", "", VK_SHADER_STAGE_ALL, 0, 128);
             shaderSet->customDescriptorSetBindings.push_back(vsg::ViewDependentStateBinding::create(VIEW_DESCRIPTOR_SET));
@@ -300,8 +360,10 @@ void main()
 
             vsg::DataList vertexArrays;
             graphicsPipelineConfig->assignArray(vertexArrays, "vsg_Vertex", VK_VERTEX_INPUT_RATE_VERTEX, vsgVertices);
-            graphicsPipelineConfig->assignArray(vertexArrays, "vsg_Normal", VK_VERTEX_INPUT_RATE_VERTEX, vsgNormals);
+            graphicsPipelineConfig->assignArray(vertexArrays, "vsg_Dir", VK_VERTEX_INPUT_RATE_VERTEX, vsgNormals);
             graphicsPipelineConfig->assignArray(vertexArrays, "vsg_Color", VK_VERTEX_INPUT_RATE_VERTEX, vsgColors);
+            graphicsPipelineConfig->enableDescriptor("material");
+            graphicsPipelineConfig->enableDescriptor("worldTransform");
 
             struct SetPipelineStates : public vsg::Visitor
             {
