@@ -24,6 +24,12 @@ layout(push_constant) uniform PushConstants {
     mat4 modelView;
 } pc;
 
+layout(constant_id = 3) const int viewportDataSize = 1;
+layout(set = 0, binding = 1) uniform ViewportData
+{
+    vec4 view[viewportDataSize];
+} vd;
+
 layout(set = 0, binding = 5) uniform WorldTransform{
     mat4 projectionInverse;
     mat4 viewInverse;
@@ -49,56 +55,23 @@ void main()
 
     vec4 e = modelView * vec4(vsg_Vertex, 1.0);
     vec4 v = pc.projection * e;
-    //vec4 d = pc.projection * modelView * vec4(vsg_Dir, 1.0);
     vec4 d = pc.projection * modelView * vec4(vsg_Vertex+vsg_Dir, 1.0);
-    //vec2 d2 = d.xy/d.w;
-    vec2 d2 = vec2(d.xy-v.xy);
-    vec4 offset = projectionInverse * vec4(-d2.y, d2.x, 0, 1);
+    vec2 d2 = vec2(d.xy/d.w-v.xy/v.w);
+    float ratio = vd.view[0][3] / vd.view[0][2];
+    vec4 offset = projectionInverse * vec4(-d2.y*ratio, d2.x, 0, 1);
 
     int m = int(floor(mod(gl_VertexIndex, 4)+0.1));
     float direction[4] = {1, -1, 1, -1};
 
-    //vec4 cam_z_dir = vec4(0, 0, -1.0, 1);
-    // cam_z_dir in world coordinates
-    //cam_z_dir = wt.viewInverse * cam_z_dir;
-    //vec3 t = normalize(cross(normalize(cam_z_dir.xyz), normalize(vsg_Dir)));
-
     vec3 t = normalize(vec3(offset.xy, 0));
 
-    float fade = (-e.z-1)*0.02;
-    fade = max(min(fade, 1.0), 0.0);
-    fade = 0;
-    float expand = 0.04-fade*0.04;
+    // float fade = (-e.z-1)*0.02;
+    // fade = max(min(fade, 1.0), 0.0);
+    // fade = 0;
+    float expand = 0.04; //-fade*0.04;
     v = vec4(e.xy + t.xy*expand*direction[m], e.z, e.w);
-    //v = vec4(vsg_Vertex + t*expand*direction[m], 1.0);
-
     v = pc.projection*v;
-    //color = vec3(normalize(d.xy)*0.5+0.5, 0);
-    //color = vec3(1, 1, 1);
     color = vsg_Color.xyz;
-    // if(m == 5)
-    // {
-
-    //   v = modelView * vec4(vsg_Vertex, 1);
-    //   d = modelView * vec4(vsg_Dir, 1);
-
-    //   //v = vec4(v.xyz-d.xyz, 1);
-
-    //   v = wt.viewInverse * v;
-    //   d = wt.viewInverse * d;
-
-    //   vec3 v1 = camPos.xyz-vsg_Vertex;
-    //   v1 = vsg_Vertex + 0.5*v1;
-    //   //v1 = camPos.xyz;
-
-    //   v = vec4(v.xyz-d.xyz, 1);
-    //   v = modelView*vec4(v1, 1.0);
-
-    //   //v.w = 1/length(v.xyz);
-    //   //v.w = 1;
-    //   v = pc.projection * v;
-    //   color = vec3(1, 0, 0);
-    // }
 
     gl_Position = v;
 
@@ -123,12 +96,9 @@ void main()
     float derivative = fwidth(d);
     float a =  1-d;
     a = min(max(sqrt(a), 0), 1);
-    //a=1;
     outColor = vec4(color, a);
-    //outColor = vec4(vec3(distanceToLine), 1.0);
     float depth = pos.z/pos.w;
     if(a < 0.25) depth = 0;
-    //if(color.g > 0.1) depth = 0;
     gl_FragDepth = depth;
 }
 )";
@@ -330,6 +300,7 @@ void main()
 
             shaderSet->addDescriptorBinding("material", "", MATERIAL_DESCRIPTOR_SET, 10, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, vsg::PbrMaterialValue::create(), vsg::CoordinateSpace::LINEAR);
             shaderSet->addDescriptorBinding("lightData", "", VIEW_DESCRIPTOR_SET, 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, vsg::vec4Array::create(64));
+            shaderSet->addDescriptorBinding("viewportData", "", VIEW_DESCRIPTOR_SET, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, vsg::vec4Value::create(0, 0, 1280, 1024));
             shaderSet->addDescriptorBinding("worldTransform", "", VIEW_DESCRIPTOR_SET, 5, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT, WorldTransformUniformValue::create());
 
             shaderSet->addPushConstantRange("pc", "", VK_SHADER_STAGE_ALL, 0, 128);
@@ -363,6 +334,7 @@ void main()
             graphicsPipelineConfig->assignArray(vertexArrays, "vsg_Dir", VK_VERTEX_INPUT_RATE_VERTEX, vsgNormals);
             graphicsPipelineConfig->assignArray(vertexArrays, "vsg_Color", VK_VERTEX_INPUT_RATE_VERTEX, vsgColors);
             graphicsPipelineConfig->enableDescriptor("material");
+            graphicsPipelineConfig->enableDescriptor("viewportData");
             graphicsPipelineConfig->enableDescriptor("worldTransform");
 
             struct SetPipelineStates : public vsg::Visitor
