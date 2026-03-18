@@ -89,6 +89,7 @@ void main()
     PointsP::PointsP() : color(1, 1, 1, 1)
     {
         node = vsg::Group::create();
+        numVertices = 0;
     }
 
     PointsP::~PointsP(void)
@@ -158,13 +159,17 @@ void main()
         if(vertices.size() < 1) return;
 
         // recreate arrays
-        vsg::ref_ptr<vsg::vec3Array> vsgVertices;
-        vsg::ref_ptr<vsg::vec4Array> vsgColors;
-        vsg::ref_ptr<vsg::uintArray> vsgIndices;
-        size_t numVertices = vertices.size();
-        vsgVertices = vsg::vec3Array::create(numVertices*4);
-        vsgColors = vsg::vec4Array::create(numVertices*4);
-        vsgIndices = vsg::uintArray::create(numVertices*6);
+        bool recreated = false;
+        if(numVertices != vertices.size())
+        {
+            numVertices = vertices.size();
+            vsgVertices = vsg::vec3Array::create(numVertices*4);
+            vsgColors = vsg::vec4Array::create(numVertices*4);
+            vsgIndices = vsg::uintArray::create(numVertices*6);
+            vsgVertices->properties.dataVariance = vsg::DYNAMIC_DATA;
+            vsgColors->properties.dataVariance = vsg::DYNAMIC_DATA;
+            recreated = true;
+        }
         for(int i=0; i< vertices.size(); ++i)
         {
             vsgVertices->at(i*4) = vertices[i];
@@ -183,18 +188,23 @@ void main()
             vsgIndices->at(i*6+5) = i*4;
         }
 
+        if(!recreated)
+        {
+            vsgVertices->dirty();
+            vsgColors->dirty();
+        } else
+        {
         // at the moment we always have to recreate the stategroup due the the arrays binding
         // todo: find better solution / check dynmic arrays example
-        if(true)
-        {
-            if(stateGroup)
-            {
-                auto it = std::find(node->children.begin(), node->children.end(), stateGroup);
-                if(it != node->children.end())
-                {
-                    node->children.erase(it);
-                }
-            }
+            node->children.clear();
+            // if(stateGroup)
+            // {
+            //     auto it = std::find(node->children.begin(), node->children.end(), stateGroup);
+            //     if(it != node->children.end())
+            //     {
+            //         node->children.erase(it);
+            //     }
+            // }
             auto vertexShader = vsg::ShaderStage::create(VK_SHADER_STAGE_VERTEX_BIT, "main", points_vert);
             auto fragmentShader = vsg::ShaderStage::create(VK_SHADER_STAGE_FRAGMENT_BIT, "main", points_frag);
 
@@ -278,8 +288,8 @@ void main()
             graphicsPipelineConfig->copyTo(stateGroup);
 
             stateGroup->addChild(vertexDraw);
+            node->addChild(stateGroup);
         }
-        node->addChild(stateGroup);
     }
 
     void* PointsP::getVSGNode()

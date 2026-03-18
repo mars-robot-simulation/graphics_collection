@@ -199,20 +199,24 @@ void main()
         if(vertices.size() < 2) return;
 
         // recreate arrays
-        vsg::ref_ptr<vsg::vec3Array> vsgVertices;
-        vsg::ref_ptr<vsg::vec3Array> vsgNormals;
-        vsg::ref_ptr<vsg::vec4Array> vsgColors;
-        vsg::ref_ptr<vsg::uintArray> vsgIndices;
-        size_t numVertices = vertices.size();
+        bool recreate = false;
         if(!strip)
         {
             // each line is represented by a quad, so we have to
             // duplicate the vertices
-            vsgVertices = vsg::vec3Array::create(numVertices*2);
-            // the normals encode the direction vector of the line
-            vsgNormals = vsg::vec3Array::create(numVertices*2);
-            vsgColors = vsg::vec4Array::create(numVertices*2);
-            vsgIndices = vsg::uintArray::create(numVertices*3);
+            if(numVertices != vertices.size())
+            {
+                numVertices = vertices.size();
+                recreate = true;
+                vsgVertices = vsg::vec3Array::create(numVertices*2);
+                // the normals encode the direction vector of the line
+                vsgNormals = vsg::vec3Array::create(numVertices*2);
+                vsgColors = vsg::vec4Array::create(numVertices*2);
+                vsgIndices = vsg::uintArray::create(numVertices*3);
+                vsgVertices->properties.dataVariance = vsg::DYNAMIC_DATA;
+                vsgNormals->properties.dataVariance = vsg::DYNAMIC_DATA;
+                vsgColors->properties.dataVariance = vsg::DYNAMIC_DATA;
+            }
             vsg::vec3 direction;
             for(int i=0; i< vertices.size()/2; ++i)
             {
@@ -238,11 +242,18 @@ void main()
             }
         } else
         {
-            numVertices = vertices.size()*2-2;
-            vsgVertices = vsg::vec3Array::create(numVertices*2);
-            vsgNormals = vsg::vec3Array::create(numVertices*2);
-            vsgColors = vsg::vec4Array::create(numVertices*2);
-            vsgIndices = vsg::uintArray::create(numVertices*3);
+            if(numVertices != vertices.size()*2-2)
+            {
+                numVertices = vertices.size()*2-2;
+                recreate = true;
+                vsgVertices = vsg::vec3Array::create(numVertices*2);
+                vsgNormals = vsg::vec3Array::create(numVertices*2);
+                vsgColors = vsg::vec4Array::create(numVertices*2);
+                vsgIndices = vsg::uintArray::create(numVertices*3);
+                vsgVertices->properties.dataVariance = vsg::DYNAMIC_DATA;
+                vsgNormals->properties.dataVariance = vsg::DYNAMIC_DATA;
+                vsgColors->properties.dataVariance = vsg::DYNAMIC_DATA;
+            }
             vsg::vec3 direction;
             for(int i=1; i< vertices.size(); ++i)
             {
@@ -271,17 +282,16 @@ void main()
 
         // at the moment we always have to recreate the stategroup due the the arrays binding
         // todo: find better solution / check dynmic arrays example
-        if(true)
+        if(!recreate)
+        {
+            vsgVertices->dirty();
+            vsgNormals->dirty();
+            vsgColors->dirty();
+        } else
         {
 
-            if(stateGroup)
-            {
-                auto it = std::find(node->children.begin(), node->children.end(), stateGroup);
-                if(it != node->children.end())
-                {
-                    node->children.erase(it);
-                }
-            }
+            node->children.clear();
+
             auto options = vsg::Options::create();
             options->fileCache = vsg::getEnv("VSG_FILE_CACHE");
             options->paths = vsg::getEnvPaths("VSG_FILE_PATH");
@@ -373,8 +383,8 @@ void main()
             graphicsPipelineConfig->copyTo(stateGroup);
 
             stateGroup->addChild(vertexDraw);
+            node->addChild(stateGroup);
         }
-        node->addChild(stateGroup);
     }
 
     void* LinesP::getVSGNode()
