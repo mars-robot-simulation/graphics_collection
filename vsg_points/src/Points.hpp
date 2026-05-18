@@ -1,19 +1,20 @@
 #pragma once
 
 #include <list>
+#include <vector>
 
 namespace vsg_points
 {
 
     struct Vector
     {
-        Vector(double x, double y, double z) : x(x), y(y), z(z) {}
+        Vector(double ix, double iy, double iz) : x(ix), y(iy), z(iz) {}
         double x, y, z;
     };
 
     struct Color
     {
-        Color(float r, float g, float b, float a) : r(r), g(g), b(b), a(a) {}
+        Color(float ir, float ig, float ib, float ia) : r(ir), g(ig), b(ib), a(ia) {}
         float r, g, b, a;
     };
 

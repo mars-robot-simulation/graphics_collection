@@ -165,7 +165,7 @@ void main()
         vsgVertices = vsg::vec3Array::create(numVertices*4);
         vsgColors = vsg::vec4Array::create(numVertices*4);
         vsgIndices = vsg::uintArray::create(numVertices*6);
-        for(int i=0; i< vertices.size(); ++i)
+        for(unsigned i=0; i< vertices.size(); ++i)
         {
             vsgVertices->at(i*4) = vertices[i];
             vsgVertices->at(i*4+1) = vertices[i];
