@@ -24,10 +24,24 @@ layout(push_constant) uniform PushConstants {
     mat4 modelView;
 } pc;
 
+layout(constant_id = 3) const int viewportDataSize = 1;
+layout(set = 0, binding = 1) uniform ViewportData
+{
+    vec4 view[viewportDataSize];
+} vd;
+
+layout(set = 0, binding = 5) uniform WorldTransform{
+    mat4 projectionInverse;
+    mat4 viewInverse;
+    vec4 viewport;
+} wt;
+
 layout(location = 0) in vec3 vsg_Vertex;
-layout(location = 1) in vec3 vsg_Color;
+layout(location = 1) in vec3 vsg_Dir;
+layout(location = 2) in vec3 vsg_Color;
 layout(location = 0) out vec3 color;
-layout(location = 1) out vec3 pos;
+layout(location = 1) out vec4 pos;
+layout(location = 2) out float distanceToLine;
 
 out gl_PerVertex{
  vec4 gl_Position;
@@ -36,10 +50,34 @@ out gl_PerVertex{
 
 void main()
 {
-    vec4 v = pc.projection * pc.modelView * vec4(vsg_Vertex, 1.0);
-    gl_Position = v;
+    mat4 modelView = inverse(wt.viewInverse);
+    mat4 viewInverse = inverse(pc.modelView);
+    mat4 projectionInverse = inverse(pc.projection);
+
+    vec4 e = modelView * vec4(vsg_Vertex, 1.0);
+    vec4 v = pc.projection * e;
+    vec4 d = pc.projection * modelView * vec4(vsg_Vertex+vsg_Dir, 1.0);
+    vec2 d2 = vec2(d.xy/d.w-v.xy/v.w);
+    float ratio = wt.viewport[3] / wt.viewport[2];
+    vec4 offset = projectionInverse * vec4(-d2.y*ratio, d2.x, 0, 1);
+
+    int m = int(floor(mod(gl_VertexIndex, 4)+0.1));
+    float direction[4] = {1, -1, 1, -1};
+
+    vec3 t = normalize(vec3(offset.xy, 0));
+
+    // float fade = (-e.z-1)*0.02;
+    // fade = max(min(fade, 1.0), 0.0);
+    // fade = 0;
+    float expand = 0.04; //-fade*0.04;
+    v = vec4(e.xy + t.xy*expand*direction[m], e.z, e.w);
+    v = pc.projection*v;
     color = vsg_Color.xyz;
-    pos = v.xyz/v.w;
+
+    gl_Position = v;
+
+    pos = v;
+    distanceToLine = direction[m];  //length(d.xy);
 }
 )";
 
@@ -48,16 +86,30 @@ void main()
 #extension GL_ARB_separate_shader_objects : enable
 
 layout(location = 0) in vec3 color;
-layout(location = 1) in vec3 pos;
+layout(location = 1) in vec4 pos;
+layout(location = 2) in float distanceToLine;
+
 layout(location = 0) out vec4 outColor;
 
 void main()
 {
-    vec2 d =1/fwidth(pos.xy);
-    float n = max(length(d), 1.0);
-    outColor = vec4(color, n);
+    float d = abs(distanceToLine)*10;
+    float derivative = fwidth(d);
+    float a =  1-d;
+    a = min(max(sqrt(a), 0), 1);
+    outColor = vec4(color, a);
+    float depth = pos.z/pos.w;
+    if(a < 0.25) depth = 0;
+    gl_FragDepth = depth;
 }
 )";
+
+    struct WorldTransformUniform
+    {
+        vsg::mat4 projInverse;
+        vsg::mat4 viewInverse;
+    };
+    using WorldTransformUniformValue = vsg::Value<WorldTransformUniform>;
 
     LinesP::LinesP()
     {
@@ -148,49 +200,99 @@ void main()
         if(vertices.size() < 2) return;
 
         // recreate arrays
-        vsg::ref_ptr<vsg::vec3Array> vsgVertices;
-        vsg::ref_ptr<vsg::vec4Array> vsgColors;
-        size_t numVertices = vertices.size();
+        bool recreate = false;
         if(!strip)
         {
-            vsgVertices = vsg::vec3Array::create(numVertices);
-            vsgColors = vsg::vec4Array::create(numVertices);
-            std::memcpy(vsgVertices->dataPointer(), vertices.data(), numVertices * 12);
-            std::memcpy(vsgColors->dataPointer(), colors.data(), numVertices * 16);
+            // each line is represented by a quad, so we have to
+            // duplicate the vertices
+            if(numVertices != vertices.size())
+            {
+                numVertices = vertices.size();
+                recreate = true;
+                vsgVertices = vsg::vec3Array::create(numVertices*2);
+                // the normals encode the direction vector of the line
+                vsgNormals = vsg::vec3Array::create(numVertices*2);
+                vsgColors = vsg::vec4Array::create(numVertices*2);
+                vsgIndices = vsg::uintArray::create(numVertices*3);
+                vsgVertices->properties.dataVariance = vsg::DYNAMIC_DATA;
+                vsgNormals->properties.dataVariance = vsg::DYNAMIC_DATA;
+                vsgColors->properties.dataVariance = vsg::DYNAMIC_DATA;
+            }
+            vsg::vec3 direction;
+            for(int i=0; i< vertices.size()/2; ++i)
+            {
+                direction = vertices[i*2+1] - vertices[i*2];
+                vsgVertices->at(i*4) = vertices[i*2];
+                vsgVertices->at(i*4+1) = vertices[i*2];
+                vsgVertices->at(i*4+2) = vertices[i*2+1];
+                vsgVertices->at(i*4+3) = vertices[i*2+1];
+                vsgNormals->at(i*4) = direction;
+                vsgNormals->at(i*4+1) = direction;
+                vsgNormals->at(i*4+2) = direction;
+                vsgNormals->at(i*4+3) = direction;
+                vsgColors->at(i*4) = colors[i*2];
+                vsgColors->at(i*4+1) = colors[i*2];
+                vsgColors->at(i*4+2) = colors[i*2+1];
+                vsgColors->at(i*4+3) = colors[i*2+1];
+                vsgIndices->at(i*6) = i*4;
+                vsgIndices->at(i*6+1) = i*4+3;
+                vsgIndices->at(i*6+2) = i*4+1;
+                vsgIndices->at(i*6+3) = i*4+2;
+                vsgIndices->at(i*6+4) = i*4+3;
+                vsgIndices->at(i*6+5) = i*4;
+            }
         } else
         {
-            numVertices = vertices.size()*2-2;
-            vsgVertices = vsg::vec3Array::create(numVertices);
-            vsgColors = vsg::vec4Array::create(numVertices);
-            std::vector<vsg::vec3> vertices2;
-            std::vector<vsg::vec4> colors2;
-            vertices2.resize(numVertices);
-            colors2.resize(numVertices);
-
+            if(numVertices != vertices.size()*2-2)
+            {
+                numVertices = vertices.size()*2-2;
+                recreate = true;
+                vsgVertices = vsg::vec3Array::create(numVertices*2);
+                vsgNormals = vsg::vec3Array::create(numVertices*2);
+                vsgColors = vsg::vec4Array::create(numVertices*2);
+                vsgIndices = vsg::uintArray::create(numVertices*3);
+                vsgVertices->properties.dataVariance = vsg::DYNAMIC_DATA;
+                vsgNormals->properties.dataVariance = vsg::DYNAMIC_DATA;
+                vsgColors->properties.dataVariance = vsg::DYNAMIC_DATA;
+            }
+            vsg::vec3 direction;
             for(int i=1; i< vertices.size(); ++i)
             {
-                vertices2[i*2-2] = vertices[i-1];
-                vertices2[i*2-1] = vertices[i];
-                colors2[i*2-2] = colors[i-1];
-                colors2[i*2-1] = colors[i];
+                direction = vertices[i] - vertices[i-1];
+                //direction = vsg::normalize(direction);
+                vsgVertices->at(i*4-4) = vertices[i-1];
+                vsgVertices->at(i*4-3) = vertices[i-1];
+                vsgVertices->at(i*4-2) = vertices[i];
+                vsgVertices->at(i*4-1) = vertices[i];
+                vsgNormals->at(i*4-4) = direction;
+                vsgNormals->at(i*4-3) = direction;
+                vsgNormals->at(i*4-2) = direction;
+                vsgNormals->at(i*4-1) = direction;
+                vsgColors->at(i*4-4) = colors[i-1];
+                vsgColors->at(i*4-3) = colors[i-1];
+                vsgColors->at(i*4-2) = colors[i];
+                vsgColors->at(i*4-1) = colors[i];
+                vsgIndices->at(i*6-6) = i*4-4;
+                vsgIndices->at(i*6-5) = i*4-1;
+                vsgIndices->at(i*6-4) = i*4-3;
+                vsgIndices->at(i*6-3) = i*4-2;
+                vsgIndices->at(i*6-2) = i*4-1;
+                vsgIndices->at(i*6-1) = i*4-4;
             }
-            std::memcpy(vsgVertices->dataPointer(), vertices2.data(), numVertices * 12);
-            std::memcpy(vsgColors->dataPointer(), colors2.data(), numVertices * 16);
         }
 
         // at the moment we always have to recreate the stategroup due the the arrays binding
         // todo: find better solution / check dynmic arrays example
-        if(true)
+        if(!recreate)
+        {
+            vsgVertices->dirty();
+            vsgNormals->dirty();
+            vsgColors->dirty();
+        } else
         {
 
-            if(stateGroup)
-            {
-                auto it = std::find(node->children.begin(), node->children.end(), stateGroup);
-                if(it != node->children.end())
-                {
-                    node->children.erase(it);
-                }
-            }
+            node->children.clear();
+
             auto options = vsg::Options::create();
             options->fileCache = vsg::getEnv("VSG_FILE_CACHE");
             options->paths = vsg::getEnvPaths("VSG_FILE_PATH");
@@ -204,9 +306,13 @@ void main()
             auto shaderSet = vsg::ShaderSet::create(vsg::ShaderStages{vertexShader, fragmentShader});
 
             shaderSet->addAttributeBinding("vsg_Vertex", "", 0, VK_FORMAT_R32G32B32_SFLOAT, vsg::vec3Array::create(1));
-            shaderSet->addAttributeBinding("vsg_Color", "", 1, VK_FORMAT_R32G32B32A32_SFLOAT, vsg::vec4Array::create(1), vsg::CoordinateSpace::LINEAR);
+            shaderSet->addAttributeBinding("vsg_Dir", "", 1, VK_FORMAT_R32G32B32_SFLOAT, vsg::vec3Array::create(1));
+            shaderSet->addAttributeBinding("vsg_Color", "", 2, VK_FORMAT_R32G32B32A32_SFLOAT, vsg::vec4Array::create(1), vsg::CoordinateSpace::LINEAR);
 
+            shaderSet->addDescriptorBinding("material", "", MATERIAL_DESCRIPTOR_SET, 10, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, vsg::PbrMaterialValue::create(), vsg::CoordinateSpace::LINEAR);
             shaderSet->addDescriptorBinding("lightData", "", VIEW_DESCRIPTOR_SET, 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, vsg::vec4Array::create(64));
+            shaderSet->addDescriptorBinding("viewportData", "", VIEW_DESCRIPTOR_SET, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, vsg::vec4Value::create(0, 0, 1280, 1024));
+            shaderSet->addDescriptorBinding("worldTransform", "", VIEW_DESCRIPTOR_SET, 5, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT, WorldTransformUniformValue::create());
 
             shaderSet->addPushConstantRange("pc", "", VK_SHADER_STAGE_ALL, 0, 128);
             shaderSet->customDescriptorSetBindings.push_back(vsg::ViewDependentStateBinding::create(VIEW_DESCRIPTOR_SET));
@@ -228,11 +334,19 @@ void main()
             auto colorBlendState = vsg::ColorBlendState::create(vsg::ColorBlendState::ColorBlendAttachments{colorBlendAttachment});
             shaderSet->defaultGraphicsPipelineStates.push_back(colorBlendState);
 
+            auto rasterState = vsg::RasterizationState::create();
+            rasterState->cullMode = VK_CULL_MODE_NONE;
+            shaderSet->defaultGraphicsPipelineStates.push_back(rasterState);
+
             auto graphicsPipelineConfig = vsg::GraphicsPipelineConfigurator::create(shaderSet);
 
             vsg::DataList vertexArrays;
             graphicsPipelineConfig->assignArray(vertexArrays, "vsg_Vertex", VK_VERTEX_INPUT_RATE_VERTEX, vsgVertices);
+            graphicsPipelineConfig->assignArray(vertexArrays, "vsg_Dir", VK_VERTEX_INPUT_RATE_VERTEX, vsgNormals);
             graphicsPipelineConfig->assignArray(vertexArrays, "vsg_Color", VK_VERTEX_INPUT_RATE_VERTEX, vsgColors);
+            graphicsPipelineConfig->enableDescriptor("material");
+            graphicsPipelineConfig->enableDescriptor("viewportData");
+            graphicsPipelineConfig->enableDescriptor("worldTransform");
 
             struct SetPipelineStates : public vsg::Visitor
             {
@@ -253,11 +367,13 @@ void main()
                     }
             } sps;
 
-            graphicsPipelineConfig->accept(sps);
+            //graphicsPipelineConfig->accept(sps);
 
-            auto vertexDraw = vsg::VertexDraw::create();
+            auto vertexDraw = vsg::VertexIndexDraw::create();
             vertexDraw->assignArrays(vertexArrays);
-            vertexDraw->vertexCount = static_cast<uint32_t>(numVertices);
+            vertexDraw->assignIndices(vsgIndices);
+            vertexDraw->indexCount = static_cast<uint32_t>(vsgIndices->size());
+            //vertexDraw->vertexCount = static_cast<uint32_t>(numVertices);
             vertexDraw->instanceCount = 1;
             vertexDraw->firstBinding = graphicsPipelineConfig->baseAttributeBinding;
 
@@ -268,8 +384,8 @@ void main()
             graphicsPipelineConfig->copyTo(stateGroup);
 
             stateGroup->addChild(vertexDraw);
+            node->addChild(stateGroup);
         }
-        node->addChild(stateGroup);
     }
 
     void* LinesP::getVSGNode()

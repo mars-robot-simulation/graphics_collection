@@ -37,6 +37,11 @@ namespace vsg_lines
         vsg::ref_ptr<vsg::MatrixTransform> linesTransform;
         vsg::ref_ptr<vsg::StateGroup> stateGroup;
         vsg::ref_ptr<vsg::Group> node;
+        vsg::ref_ptr<vsg::vec3Array> vsgVertices;
+        vsg::ref_ptr<vsg::vec3Array> vsgNormals;
+        vsg::ref_ptr<vsg::vec4Array> vsgColors;
+        vsg::ref_ptr<vsg::uintArray> vsgIndices;
+        size_t numVertices;
 
         vsg::vec3 getBezierPoint(float t);
     };

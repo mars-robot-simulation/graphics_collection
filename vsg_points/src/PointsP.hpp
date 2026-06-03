@@ -30,6 +30,10 @@ namespace vsg_points
         std::vector<vsg::vec4> colors;
         vsg::ref_ptr<vsg::StateGroup> stateGroup;
         vsg::ref_ptr<vsg::Group> node;
+        vsg::ref_ptr<vsg::vec3Array> vsgVertices;
+        vsg::ref_ptr<vsg::vec4Array> vsgColors;
+        vsg::ref_ptr<vsg::uintArray> vsgIndices;
+        size_t numVertices;
     };
 
 } // end of namespace: vsg_points
