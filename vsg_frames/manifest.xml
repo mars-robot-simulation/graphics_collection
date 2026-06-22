@@ -3,6 +3,6 @@
       Implements 3D frames visualization in osg
    </description>
    <maintainer>Malte Langosz/malte.langosz@dfki.de</maintainer>
-   <depend package="external/VulkanSceneGraph" />
+   <depend package="external/vsgXchange" />
    <tags>needs_opt</tags>
 </package>

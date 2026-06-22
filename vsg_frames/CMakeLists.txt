@@ -8,7 +8,7 @@ find_package(vsg)
 
 vsg_setup_dir_vars()
 vsg_setup_build_vars()
-find_package(vsgXchange 1.1.7 QUIET)
+find_package(vsgXchange 1.1.7 REQUIRED)
 
 #cmake variables
 configure_file(${CMAKE_SOURCE_DIR}/config.h.in ${CMAKE_BINARY_DIR}/config.h @ONLY)
