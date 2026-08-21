@@ -14,7 +14,7 @@
 namespace vsg_lines
 {
 
-    
+
     const auto lines_vert = R"(
 #version 450
 #extension GL_ARB_separate_shader_objects : enable
@@ -33,6 +33,7 @@ layout(set = 0, binding = 1) uniform ViewportData
 layout(set = 0, binding = 5) uniform WorldTransform{
     mat4 projectionInverse;
     mat4 viewInverse;
+    vec4 vd;
 } wt;
 
 layout(location = 0) in vec3 vsg_Vertex;
@@ -57,7 +58,8 @@ void main()
     vec4 v = pc.projection * e;
     vec4 d = pc.projection * modelView * vec4(vsg_Vertex+vsg_Dir, 1.0);
     vec2 d2 = vec2(d.xy/d.w-v.xy/v.w);
-    float ratio = vd.view[0][3] / vd.view[0][2];
+    float ratio = wt.vd[3] / wt.vd[2];
+    //float ratio = vd.view[0][3] / vd.view[0][2];
     vec4 offset = projectionInverse * vec4(-d2.y*ratio, d2.x, 0, 1);
 
     int m = int(floor(mod(gl_VertexIndex, 4)+0.1));
@@ -128,7 +130,7 @@ void main()
         vertices.push_back(vsg::vec3(v.x, v.y, v.z));
         //points->push_back(osg::Vec3(v.x, v.y, v.z));
         colors.push_back(vsg::vec4(c.r, c.g, c.b, c.a));
-        
+
         dirty();
     }
 
@@ -310,7 +312,7 @@ void main()
 
             shaderSet->addDescriptorBinding("material", "", MATERIAL_DESCRIPTOR_SET, 10, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, vsg::PbrMaterialValue::create(), vsg::CoordinateSpace::LINEAR);
             shaderSet->addDescriptorBinding("lightData", "", VIEW_DESCRIPTOR_SET, 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, vsg::vec4Array::create(64));
-            shaderSet->addDescriptorBinding("viewportData", "", VIEW_DESCRIPTOR_SET, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, vsg::vec4Value::create(0, 0, 1280, 1024));
+            shaderSet->addDescriptorBinding("viewportData", "", VIEW_DESCRIPTOR_SET, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, vsg::vec4Array::create(1));
             shaderSet->addDescriptorBinding("worldTransform", "", VIEW_DESCRIPTOR_SET, 5, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT, WorldTransformUniformValue::create());
 
             shaderSet->addPushConstantRange("pc", "", VK_SHADER_STAGE_ALL, 0, 128);
@@ -344,6 +346,7 @@ void main()
             graphicsPipelineConfig->assignArray(vertexArrays, "vsg_Dir", VK_VERTEX_INPUT_RATE_VERTEX, vsgNormals);
             graphicsPipelineConfig->assignArray(vertexArrays, "vsg_Color", VK_VERTEX_INPUT_RATE_VERTEX, vsgColors);
             graphicsPipelineConfig->enableDescriptor("material");
+            graphicsPipelineConfig->enableDescriptor("lightData");
             graphicsPipelineConfig->enableDescriptor("viewportData");
             graphicsPipelineConfig->enableDescriptor("worldTransform");
 
@@ -389,7 +392,7 @@ void main()
 
     void* LinesP::getVSGNode()
     {
-        return (void*)(vsg::Node*)node.get();
+        return (void*)&node;
     }
 
     void LinesP::setBezierMode(bool bezier = true)

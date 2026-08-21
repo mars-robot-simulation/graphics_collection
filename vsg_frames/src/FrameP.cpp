@@ -42,7 +42,7 @@ namespace vsg_frames
   
     void* FrameP::getVSGNode()
     {
-        return (void*)(vsg::Node*)poseTransform.get();
+        return (void*)&poseTransform;
     }
 
     void FrameP::setNodeMask(int mask)

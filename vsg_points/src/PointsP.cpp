@@ -294,7 +294,7 @@ void main()
 
     void* PointsP::getVSGNode()
     {
-        return (void*)(vsg::Node*)node.get();
+        return (void*)&node;
     }
 
 } // end of namespace: vsg_points

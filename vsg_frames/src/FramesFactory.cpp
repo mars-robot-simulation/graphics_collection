@@ -11,6 +11,12 @@ namespace vsg_frames
     {
         // load frames resource
         std::string s = std::string(SHARE_DIR);
+        char *dataPath = getenv("MARS_DATA_PATH");
+        if(dataPath) {
+            s = dataPath;
+            if(s.back() != '/') s += "/";
+            s += "vsg_frames";
+        }
         s += "/resources/frame.obj";
         fprintf(stderr, "osg_frames: load %s\n", s.c_str());
         auto options = vsg::Options::create(vsgXchange::all::create());
