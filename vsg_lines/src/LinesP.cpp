@@ -33,7 +33,7 @@ layout(set = 0, binding = 1) uniform ViewportData
 layout(set = 0, binding = 5) uniform WorldTransform{
     mat4 projectionInverse;
     mat4 viewInverse;
-    vec4 vd;
+    vec4 viewport;
 } wt;
 
 layout(location = 0) in vec3 vsg_Vertex;
@@ -58,8 +58,7 @@ void main()
     vec4 v = pc.projection * e;
     vec4 d = pc.projection * modelView * vec4(vsg_Vertex+vsg_Dir, 1.0);
     vec2 d2 = vec2(d.xy/d.w-v.xy/v.w);
-    float ratio = wt.vd[3] / wt.vd[2];
-    //float ratio = vd.view[0][3] / vd.view[0][2];
+    float ratio = wt.viewport[3] / wt.viewport[2];
     vec4 offset = projectionInverse * vec4(-d2.y*ratio, d2.x, 0, 1);
 
     int m = int(floor(mod(gl_VertexIndex, 4)+0.1));
